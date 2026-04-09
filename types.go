@@ -1,8 +1,15 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 )
+
+func PrettifyName(name string, prefix string) string {
+	s, _ := strings.CutPrefix(name, prefix)
+	return s[:1] + strings.ToLower(s[1:])
+}
 
 type CharacterWinLossObject struct {
 	Character string `json:"character"`
@@ -11,8 +18,7 @@ type CharacterWinLossObject struct {
 }
 
 func (c CharacterWinLossObject) Name() string {
-	s, _ := strings.CutPrefix(c.Character, "CHARACTER.")
-	return s[:1] + strings.ToLower(s[1:])
+	return PrettifyName(c.Character, "CHARACTER.")
 }
 
 type AncientStatsObject struct {
@@ -48,8 +54,7 @@ type CharacterStatsObject struct {
 }
 
 func (c CharacterStatsObject) Name() string {
-	s, _ := strings.CutPrefix(c.Id, "CHARACTER.")
-	return s[:1] + strings.ToLower(s[1:])
+	return PrettifyName(c.Id, "ID.")
 }
 
 type EncounterStatsObject struct {
@@ -95,4 +100,262 @@ type ProgressSave struct {
 	UniqueId         string `json:"unique_id"`
 	// UnlockedAchievements
 	WongoPoints int `json:"wongo_points"`
+}
+
+type RoomsObject struct {
+	AncientId               string   `json:"ancient_id"`
+	BossEncountersVisited   int      `json:"boss_encounters_visited"`
+	BossId                  string   `json:"boss_id"`
+	EliteEncounterIds       []string `json:"elite_encounter_ids"`
+	EliteEncountersVisited  int      `json:"elite_encounters_visited"`
+	EventIds                []string `json:"event_ids"`
+	EventsVisited           int      `json:"events_visited"`
+	NormalEncounterIds      []string `json:"normal_encounter_ids"`
+	NormalEncountersVisited int      `json:"normal_encounters_visited"`
+	SecondBossId            *string  `json:"second_boss_id"`
+}
+
+type Coord struct {
+	Col int `json:"col"`
+	Row int `json:"row"`
+}
+
+type MapNodeType string
+
+const (
+	MapNodeTypeAncient  MapNodeType = "ancient"
+	MapNodeTypeMonster  MapNodeType = "monster"
+	MapNodeTypeElite    MapNodeType = "elite"
+	MapNodeTypeRestSite MapNodeType = "rest_site"
+	MapNodeTypeShop     MapNodeType = "shop"
+	MapNodeTypeTreasure MapNodeType = "treasure"
+	MapNodeTypeUnknown  MapNodeType = "unknown"
+	MapNodeTypeBoss     MapNodeType = "boss"
+)
+
+func (t *MapNodeType) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	switch s {
+	case
+		"ancient",
+		"monster",
+		"elite",
+		"rest_site",
+		"shop",
+		"treasure",
+		"unknown",
+		"boss":
+		*t = MapNodeType(s)
+		return nil
+	}
+	return fmt.Errorf("invalid MapNodeType: %s", s)
+}
+
+type MapNode struct {
+	CanModify bool    `json:"can_modify"`
+	Children  []Coord `json:"children"`
+	Coord     Coord   `json:"coord"`
+	Type      string  `json:"type"`
+}
+
+type SavedMap struct {
+	Boss        MapNode   `json:"boss"`
+	Height      int       `json:"height"`
+	Points      []MapNode `json:"points"`
+	Start       MapNode   `json:"start"`
+	StartCoords []Coord   `json:"start_coords"`
+	Width       int       `json:"width"`
+}
+
+type Act struct {
+	Id       string      `json:"id"`
+	Rooms    RoomsObject `json:"rooms"`
+	SavedMap *SavedMap   `json:"saved_map"`
+}
+
+type Title struct {
+	Key   string `json:"key"`
+	Table string `json:"table"`
+}
+
+type AncientChoice struct {
+	TextKey   string `json:"TextKey"`
+	Title     Title  `json:"title"`
+	WasChosen bool   `json:"was_chosen"`
+}
+
+type Card struct {
+	FloorAddedToDeck *int   `json:"floor_added_to_deck"`
+	Id               string `json:"id"`
+}
+
+type CardChoice struct {
+	Card      Card `json:"card"`
+	WasPicked bool `json:"was_picked"`
+}
+
+type EventChoice struct {
+	Title Title `json:"title"`
+}
+
+type PotionChoice struct {
+	Choice    string `json:"choice"`
+	Waspicked bool   `json:"was_picked"`
+}
+
+type RelicChoice struct {
+	Choice    string `json:"choice"`
+	Waspicked bool   `json:"was_picked"`
+}
+
+type CardGained struct {
+	Id string `json:"id"`
+}
+
+type PlayerStatsObject struct {
+	CurrentGold int `json:"current_gold"`
+	CurrentHP   int `json:"current_hp"`
+	DamageTaken int `json:"damage_taken"`
+	GoldGained  int `json:"gold_gained"`
+	GoldLost    int `json:"gold_lost"`
+	GoldSpent   int `json:"gold_spent"`
+	GoldStolen  int `json:"gold_stolen"`
+	HPHealed    int `json:"hp_healed"`
+	MaxHP       int `json:"max_hp"`
+	MaxHPGained int `json:"max_hp_gained"`
+	MaxHPLost   int `json:"max_hp_lost"`
+	PlayerId    int `json:"player_id"`
+
+	BoughtPotions *[]string `json:"bought_potions"`
+	BoughtRelics  *[]string `json:"bought_relics"`
+
+	AncientChoice *[]AncientChoice `json:"ancient_choice"`
+	CardChoices   *[]CardChoice    `json:"card_choices"`
+	EventChoices  *[]EventChoice   `json:"event_choice"`
+	PotionChoices *[]PotionChoice  `json:"potion_choices"`
+	RelicChoices  *[]RelicChoice   `json:"relic_choices"`
+	CardsGained   []CardGained     `json:"cards_gained"`
+}
+
+type RoomInfo struct {
+	ModelId    string `json:"model_id"`
+	RoomType   string `json:"room_type"`
+	TurnsTaken int    `json:"turns_taken"`
+
+	MonsterIds *[]string `json:"monster_ids"`
+}
+
+type MapPoint struct {
+	MapPointType MapNodeType         `json:"map_point_type"`
+	PlayerStats  []PlayerStatsObject `json:"player_stats"`
+	Rooms        []RoomInfo          `json:"rooms"`
+}
+
+type Potion struct {
+	Id        string `json:"id"`
+	SlotIndex int    `json:"slot_index"`
+}
+
+type RelicIdLists struct {
+	Common   []string `json:"common"`
+	Uncommon []string `json:"uncommon"`
+	Rare     []string `json:"rare"`
+	Shop     []string `json:"shop"`
+	Event    []string `json:"event"`
+	Ancient  []string `json:"ancient"`
+}
+
+type RelicGrabBag struct {
+	RelicIdLists RelicIdLists `json:"relic_id_lists"`
+}
+
+type Relic struct {
+	FloorAddedToDeck int    `json:"floor_added_to_deck"`
+	Id               string `json:"id"`
+}
+
+type RNG struct {
+	Counters map[string]int `json:"counters"` // TODO
+	Seed     any            `json:"seed"`
+}
+
+type UnlockState struct {
+	EncountersSeen []string `json:"encounters_seen"`
+	NumberOfRuns   int      `json:"number_of_runs"`
+	UnlockedEpochs []string `json:"unlocked_epochs"`
+}
+
+type Player struct {
+	BaseOrbSlotCount   int                `json:"base_orb_slot_count"`
+	CharacterId        string             `json:"character_id"`
+	CurrentHP          int                `json:"current_hp"`
+	Deck               []Card             `json:"deck"`
+	ExtraFields        map[string]any     `json:"extra_fields"`
+	Gold               int                `json:"gold"`
+	MaxEnergy          int                `json:"max_energy"`
+	MaxHP              int                `json:"max_hp"`
+	MaxPotionSlotCount int                `json:"max_potion_slot_count"`
+	NetId              int                `json:"net_id"`
+	Odds               map[string]float64 `json:"odds"` // TODO
+	Potions            []Potion           `json:"potions"`
+	RelicGrabBag       RelicGrabBag       `json:"relic_grab_bag"`
+	Relics             []Relic            `json:"relics"`
+	RNG                RNG                `json:"rng"`
+	UnlockState        UnlockState        `json:"unlock_state"`
+}
+
+func (p Player) GetPotionChance() float64 {
+	return p.Odds["potion_reward_odds_value"]
+}
+
+type PreFinishedRoom struct {
+	EncounterID             *string `json:"encounter_id"`
+	EventID                 *string `json:"event_id"`
+	IsPreFinished           bool    `json:"is_pre_finished"`
+	ParentEventID           *string `json:"parent_event_id"`
+	RewardProportion        int     `json:"reward_proportion"`
+	RoomType                string  `json:"room_type"`
+	ShouldResumeParentEvent bool    `json:"should_resume_parent_event"`
+}
+
+type CurrentRunSave struct {
+	Acts               []Act              `json:"acts"`
+	Ascension          int                `json:"ascension"`
+	CurrentActIndex    int                `json:"current_act_index"`
+	ExtraFields        map[string]any     `json:"extra_fields"`
+	GameMode           string             `json:"game_mode"`
+	MapDrawings        string             `json:"map_drawings"`
+	MapPointHistory    [][]MapPoint       `json:"map_point_history"`
+	Modifiers          []any              `json:"modifiers"`
+	Odds               map[string]float64 `json:"odds"` // TODO
+	PlatformType       string             `json:"platform_type"`
+	Players            []Player           `json:"players"`
+	PreFinishedRoom    PreFinishedRoom    `json:"pre_finished_room"`
+	RNG                RNG                `json:"rng"`
+	RunTime            int                `json:"run_time"`
+	SaveTime           int64              `json:"save_time"`
+	SchemaVersion      int                `json:"schema_version"`
+	SharedRelicGrabBag RelicGrabBag       `json:"shared_relic_grab_bag"`
+	StartTime          int64              `json:"start_time"`
+	VisitedMapCoords   []Coord            `json:"visited_map_coords"`
+	WinTime            int                `json:"win_time"`
+}
+
+func (s CurrentRunSave) GetUnknownEliteChance() float64 {
+	return s.Odds["unknown_map_point_elite_odds_value"]
+}
+
+func (s CurrentRunSave) GetUnknownMonsterChance() float64 {
+	return s.Odds["unknown_map_point_monster_odds_value"]
+}
+
+func (s CurrentRunSave) GetUnknownShopChance() float64 {
+	return s.Odds["unknown_map_point_shop_odds_value"]
+}
+
+func (s CurrentRunSave) GetUnknownTreasureChance() float64 {
+	return s.Odds["unknown_map_point_treasure_odds_value"]
 }

@@ -52,21 +52,35 @@ func main() {
 
 	// <-make(chan struct{})
 
-	// Read character data
+	// Read progress.save
 	path := filepath.Join(STEAM_USERDATA_PATH, STEAM_USER_ID, GAME_ID, "remote", PROFILE, "saves", "progress.save")
 	file, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	dat := ProgressSave{}
+	progressSave := ProgressSave{}
 
-	if err := json.Unmarshal(file, &dat); err != nil {
+	if err := json.Unmarshal(file, &progressSave); err != nil {
 		log.Fatal(err)
 	}
 
-	for _, c := range dat.CharacterStats {
+	for _, c := range progressSave.CharacterStats {
 		fmt.Println(c.Name())
 		fmt.Printf("Winrate: %.2f\n", float64(c.TotalWins)/(float64(c.TotalWins)+float64(c.TotalLosses)))
 	}
+
+	// Read current_run.save
+	path = filepath.Join(STEAM_USERDATA_PATH, STEAM_USER_ID, GAME_ID, "remote", PROFILE, "saves", "current_run.save")
+	file, err = os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	currentRunSave := CurrentRunSave{}
+
+	if err := json.Unmarshal(file, &currentRunSave); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(currentRunSave)
 }
