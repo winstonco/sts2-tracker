@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func PrettifyName(name string, prefix string) string {
+	caser := cases.Title(language.English)
 	s, _ := strings.CutPrefix(name, prefix)
-	return s[:1] + strings.ToLower(s[1:])
+	s = strings.ReplaceAll(s, "_", " ")
+	return caser.String(s)
 }
 
 type CharacterWinLossObject struct {
@@ -154,11 +159,19 @@ func (t *MapNodeType) UnmarshalJSON(b []byte) error {
 	return fmt.Errorf("invalid MapNodeType: %s", s)
 }
 
+func (t MapNodeType) String() string {
+	return string(t)
+}
+
+func (t MapNodeType) Name() string {
+	return PrettifyName(t.String(), "")
+}
+
 type MapNode struct {
-	CanModify bool    `json:"can_modify"`
-	Children  []Coord `json:"children"`
-	Coord     Coord   `json:"coord"`
-	Type      string  `json:"type"`
+	CanModify bool        `json:"can_modify"`
+	Children  []Coord     `json:"children"`
+	Coord     Coord       `json:"coord"`
+	Type      MapNodeType `json:"type"`
 }
 
 type SavedMap struct {
@@ -187,9 +200,17 @@ type AncientChoice struct {
 	WasChosen bool   `json:"was_chosen"`
 }
 
+func (c AncientChoice) Name() string {
+	return PrettifyName(c.TextKey, "")
+}
+
 type Card struct {
 	FloorAddedToDeck *int   `json:"floor_added_to_deck"`
 	Id               string `json:"id"`
+}
+
+func (c Card) Name() string {
+	return PrettifyName(c.Id, "CARD.")
 }
 
 type CardChoice struct {
@@ -259,6 +280,10 @@ type Potion struct {
 	SlotIndex int    `json:"slot_index"`
 }
 
+func (p Potion) Name() string {
+	return PrettifyName(p.Id, "POTION.")
+}
+
 type RelicIdLists struct {
 	Common   []string `json:"common"`
 	Uncommon []string `json:"uncommon"`
@@ -275,6 +300,10 @@ type RelicGrabBag struct {
 type Relic struct {
 	FloorAddedToDeck int    `json:"floor_added_to_deck"`
 	Id               string `json:"id"`
+}
+
+func (r Relic) Name() string {
+	return PrettifyName(r.Id, "RELIC.")
 }
 
 type RNG struct {
@@ -305,6 +334,10 @@ type Player struct {
 	Relics             []Relic            `json:"relics"`
 	RNG                RNG                `json:"rng"`
 	UnlockState        UnlockState        `json:"unlock_state"`
+}
+
+func (p Player) Name() string {
+	return PrettifyName(p.CharacterId, "CHARACTER.")
 }
 
 func (p Player) GetPotionChance() float64 {
