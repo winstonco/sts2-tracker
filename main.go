@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"strconv"
 )
@@ -14,21 +12,14 @@ const STEAM_USER_ID = "286123118"
 const GAME_ID = "2868840"
 const PROFILE = "profile1"
 
-var PROFILE_PATH = filepath.Join(STEAM_USERDATA_PATH, STEAM_USER_ID, GAME_ID, "remote", PROFILE, "saves")
+var PROFILE_SAVES_PATH = filepath.Join(STEAM_USERDATA_PATH, STEAM_USER_ID, GAME_ID, "remote", PROFILE, "saves")
+var PROGRESS_SAVE_PATH = filepath.Join(PROFILE_SAVES_PATH, "progress.save")
+var CURRENT_RUN_SAVE_PATH = filepath.Join(PROFILE_SAVES_PATH, "current_run.save")
 
 func main() {
-	log.Println("Hello World")
-
 	// Read progress.save
-	path := filepath.Join(PROFILE_PATH, "progress.save")
-	file, err := os.ReadFile(path)
+	progressSave, err := ReadProgressSave()
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	progressSave := ProgressSave{}
-
-	if err := json.Unmarshal(file, &progressSave); err != nil {
 		log.Fatal(err)
 	}
 
@@ -38,9 +29,8 @@ func main() {
 	}
 
 	// Read current_run.save
-	path = filepath.Join(STEAM_USERDATA_PATH, STEAM_USER_ID, GAME_ID, "remote", PROFILE, "saves", "current_run.save")
-
-	if FileExists(path) {
+	if FileExists(CURRENT_RUN_SAVE_PATH) {
+		log.Println("Current run found")
 		run, err := ReadCurrentSave()
 		if err != nil {
 			log.Fatal(err)
@@ -57,8 +47,13 @@ func main() {
 		for _, r := range player.Relics {
 			fmt.Println(r.Name())
 		}
+	} else {
+		log.Println("No current run")
 	}
 
+	// Aggregate past run data
+	AggregateRunData()
+
 	// Start watching
-	BeginWatch()
+	// BeginWatch()
 }

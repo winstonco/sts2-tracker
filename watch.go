@@ -51,8 +51,8 @@ func BeginWatch() {
 	}()
 
 	// Add a path.
-	log.Println("Watching on path: ", PROFILE_PATH)
-	path := filepath.Join(PROFILE_PATH)
+	log.Println("Watching on path: ", PROFILE_SAVES_PATH)
+	path := filepath.Join(PROFILE_SAVES_PATH)
 	err = watcher.Add(path)
 	if err != nil {
 		log.Fatal(err)

@@ -40,7 +40,7 @@ type CardStatsObject struct {
 }
 
 type Badge struct {
-	Count  int    `json:"count"`
+	Count  *int   `json:"count"`
 	Id     string `json:"id"`
 	Rarity string `json:"rarity"`
 }
@@ -78,7 +78,7 @@ type EpochsObject struct {
 	State      string `json:"state"`
 }
 
-type ProgressSave struct {
+type ProgressSaveFile struct {
 	AncientStats      []AncientStatsObject   `json:"ancient_stats"`
 	ArchitectDamage   int                    `json:"architect_damage"`
 	CardStats         []CardStatsObject      `json:"card_stats"`
@@ -204,9 +204,16 @@ func (c AncientChoice) Name() string {
 	return PrettifyName(c.TextKey, "")
 }
 
+type Enchantment struct {
+	Amount int    `json:"amount"`
+	Id     string `json:"id"`
+}
+
 type Card struct {
-	FloorAddedToDeck *int   `json:"floor_added_to_deck"`
-	Id               string `json:"id"`
+	CurrentUpgradeLevel *int         `json:"current_upgrade_level"`
+	Enchantment         *Enchantment `json:"enchantment"`
+	FloorAddedToDeck    *int         `json:"floor_added_to_deck"`
+	Id                  string       `json:"id"`
 }
 
 func (c Card) Name() string {
@@ -220,6 +227,8 @@ type CardChoice struct {
 
 type EventChoice struct {
 	Title Title `json:"title"`
+	// TODO
+	Variables *any `json:"variables"`
 }
 
 type PotionChoice struct {
@@ -233,7 +242,13 @@ type RelicChoice struct {
 }
 
 type CardGained struct {
-	Id string `json:"id"`
+	CurrentUpgradeLevel *int   `json:"current_upgrade_level"`
+	Id                  string `json:"id"`
+}
+
+type CardEnchanted struct {
+	Card        Card   `json:"card"`
+	Enchantment string `json:"enchantment"`
 }
 
 type PlayerStatsObject struct {
@@ -253,12 +268,13 @@ type PlayerStatsObject struct {
 	BoughtPotions *[]string `json:"bought_potions"`
 	BoughtRelics  *[]string `json:"bought_relics"`
 
-	AncientChoice *[]AncientChoice `json:"ancient_choice"`
-	CardChoices   *[]CardChoice    `json:"card_choices"`
-	EventChoices  *[]EventChoice   `json:"event_choice"`
-	PotionChoices *[]PotionChoice  `json:"potion_choices"`
-	RelicChoices  *[]RelicChoice   `json:"relic_choices"`
-	CardsGained   []CardGained     `json:"cards_gained"`
+	AncientChoice  *[]AncientChoice `json:"ancient_choice"`
+	CardChoices    *[]CardChoice    `json:"card_choices"`
+	EventChoices   *[]EventChoice   `json:"event_choice"`
+	PotionChoices  *[]PotionChoice  `json:"potion_choices"`
+	RelicChoices   *[]RelicChoice   `json:"relic_choices"`
+	CardsGained    *[]CardGained    `json:"cards_gained"`
+	CardsEnchanted *[]CardEnchanted `json:"cards_enchanted"`
 }
 
 type RoomInfo struct {
@@ -354,7 +370,7 @@ type PreFinishedRoom struct {
 	ShouldResumeParentEvent bool    `json:"should_resume_parent_event"`
 }
 
-type CurrentRunSave struct {
+type CurrentRunSaveFile struct {
 	Acts               []Act              `json:"acts"`
 	Ascension          int                `json:"ascension"`
 	CurrentActIndex    int                `json:"current_act_index"`
@@ -377,18 +393,51 @@ type CurrentRunSave struct {
 	WinTime            int                `json:"win_time"`
 }
 
-func (s CurrentRunSave) GetUnknownEliteChance() float64 {
+func (s CurrentRunSaveFile) GetUnknownEliteChance() float64 {
 	return s.Odds["unknown_map_point_elite_odds_value"]
 }
 
-func (s CurrentRunSave) GetUnknownMonsterChance() float64 {
+func (s CurrentRunSaveFile) GetUnknownMonsterChance() float64 {
 	return s.Odds["unknown_map_point_monster_odds_value"]
 }
 
-func (s CurrentRunSave) GetUnknownShopChance() float64 {
+func (s CurrentRunSaveFile) GetUnknownShopChance() float64 {
 	return s.Odds["unknown_map_point_shop_odds_value"]
 }
 
-func (s CurrentRunSave) GetUnknownTreasureChance() float64 {
+func (s CurrentRunSaveFile) GetUnknownTreasureChance() float64 {
 	return s.Odds["unknown_map_point_treasure_odds_value"]
+}
+
+type PastRunPlayer struct {
+	Badges             []Badge  `json:"badges"`
+	Character          string   `json:"character"`
+	Deck               []Card   `json:"deck"`
+	Id                 int      `json:"id"`
+	MaxPotionSlotCount int      `json:"max_potion_slot_count"`
+	Potions            []Potion `json:"potions"`
+	Relics             []Relic  `json:"relics"`
+}
+
+func (p PastRunPlayer) Name() string {
+	return PrettifyName(p.Character, "CHARACTER.")
+}
+
+type PastRunFile struct {
+	Acts              []string        `json:"acts"`
+	Ascension         int             `json:"ascension"`
+	BuildId           string          `json:"build_id"`
+	GameMode          string          `json:"game_mode"`
+	KilledByEncounter string          `json:"killed_by_encounter"`
+	KilledByEvent     string          `json:"killed_by_event"`
+	MapPointHistory   [][]MapPoint    `json:"map_point_history"`
+	Modifiers         []any           `json:"modifiers"`
+	PlatformType      string          `json:"platform_type"`
+	Players           []PastRunPlayer `json:"players"`
+	RunTime           int             `json:"run_time"`
+	SchemaVersion     int             `json:"schema_version"`
+	Seed              string          `json:"seed"`
+	StartTime         int             `json:"start_time"`
+	WasAbandoned      bool            `json:"was_abandoned"`
+	Win               bool            `json:"win"`
 }
