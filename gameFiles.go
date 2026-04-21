@@ -3,13 +3,24 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
-func PrettifyName(name string, prefix string) string {
+const STEAM_USERDATA_PATH = `C:\Program Files (x86)\Steam\userdata\`
+const STEAM_USER_ID = "286123118"
+const GAME_ID = "2868840"
+const PROFILE = "profile1"
+
+var PROFILE_SAVES_PATH = filepath.Join(STEAM_USERDATA_PATH, STEAM_USER_ID, GAME_ID, "remote", PROFILE, "saves")
+var PROGRESS_SAVE_PATH = filepath.Join(PROFILE_SAVES_PATH, "progress.save")
+var CURRENT_RUN_SAVE_PATH = filepath.Join(PROFILE_SAVES_PATH, "current_run.save")
+
+func prettifyName(name string, prefix string) string {
 	caser := cases.Title(language.English)
 	s, _ := strings.CutPrefix(name, prefix)
 	s = strings.ReplaceAll(s, "_", " ")
@@ -23,7 +34,7 @@ type CharacterWinLossObject struct {
 }
 
 func (c CharacterWinLossObject) Name() string {
-	return PrettifyName(c.Character, "CHARACTER.")
+	return prettifyName(c.Character, "CHARACTER.")
 }
 
 type AncientStatsObject struct {
@@ -59,7 +70,7 @@ type CharacterStatsObject struct {
 }
 
 func (c CharacterStatsObject) Name() string {
-	return PrettifyName(c.Id, "ID.")
+	return prettifyName(c.Id, "ID.")
 }
 
 type EncounterStatsObject struct {
@@ -105,6 +116,19 @@ type ProgressSaveFile struct {
 	UniqueId         string `json:"unique_id"`
 	// UnlockedAchievements
 	WongoPoints int `json:"wongo_points"`
+}
+
+func readProgressSave() (ProgressSaveFile, error) {
+	file, err := os.ReadFile(PROGRESS_SAVE_PATH)
+	if err != nil {
+		return ProgressSaveFile{}, err
+	}
+
+	progressSave := ProgressSaveFile{}
+	if err := json.Unmarshal(file, &progressSave); err != nil {
+		return ProgressSaveFile{}, err
+	}
+	return progressSave, nil
 }
 
 type RoomsObject struct {
@@ -164,7 +188,7 @@ func (t MapNodeType) String() string {
 }
 
 func (t MapNodeType) Name() string {
-	return PrettifyName(t.String(), "")
+	return prettifyName(t.String(), "")
 }
 
 type MapNode struct {
@@ -201,7 +225,7 @@ type AncientChoice struct {
 }
 
 func (c AncientChoice) Name() string {
-	return PrettifyName(c.TextKey, "")
+	return prettifyName(c.TextKey, "")
 }
 
 type Enchantment struct {
@@ -217,7 +241,7 @@ type Card struct {
 }
 
 func (c Card) Name() string {
-	return PrettifyName(c.Id, "CARD.")
+	return prettifyName(c.Id, "CARD.")
 }
 
 type CardChoice struct {
@@ -297,7 +321,7 @@ type Potion struct {
 }
 
 func (p Potion) Name() string {
-	return PrettifyName(p.Id, "POTION.")
+	return prettifyName(p.Id, "POTION.")
 }
 
 type RelicIdLists struct {
@@ -319,7 +343,7 @@ type Relic struct {
 }
 
 func (r Relic) Name() string {
-	return PrettifyName(r.Id, "RELIC.")
+	return prettifyName(r.Id, "RELIC.")
 }
 
 type RNG struct {
@@ -353,10 +377,10 @@ type Player struct {
 }
 
 func (p Player) Name() string {
-	return PrettifyName(p.CharacterId, "CHARACTER.")
+	return prettifyName(p.CharacterId, "CHARACTER.")
 }
 
-func (p Player) GetPotionChance() float64 {
+func (p Player) PotionChance() float64 {
 	return p.Odds["potion_reward_odds_value"]
 }
 
@@ -393,19 +417,32 @@ type CurrentRunSaveFile struct {
 	WinTime            int                `json:"win_time"`
 }
 
-func (s CurrentRunSaveFile) GetUnknownEliteChance() float64 {
+func readCurrentSave() (CurrentRunSaveFile, error) {
+	file, err := os.ReadFile(CURRENT_RUN_SAVE_PATH)
+	if err != nil {
+		return CurrentRunSaveFile{}, err
+	}
+
+	currentRunSave := CurrentRunSaveFile{}
+	if err := json.Unmarshal(file, &currentRunSave); err != nil {
+		return CurrentRunSaveFile{}, err
+	}
+	return currentRunSave, nil
+}
+
+func (s CurrentRunSaveFile) UnknownEliteChance() float64 {
 	return s.Odds["unknown_map_point_elite_odds_value"]
 }
 
-func (s CurrentRunSaveFile) GetUnknownMonsterChance() float64 {
+func (s CurrentRunSaveFile) UnknownMonsterChance() float64 {
 	return s.Odds["unknown_map_point_monster_odds_value"]
 }
 
-func (s CurrentRunSaveFile) GetUnknownShopChance() float64 {
+func (s CurrentRunSaveFile) UnknownShopChance() float64 {
 	return s.Odds["unknown_map_point_shop_odds_value"]
 }
 
-func (s CurrentRunSaveFile) GetUnknownTreasureChance() float64 {
+func (s CurrentRunSaveFile) UnknownTreasureChance() float64 {
 	return s.Odds["unknown_map_point_treasure_odds_value"]
 }
 
@@ -420,7 +457,7 @@ type PastRunPlayer struct {
 }
 
 func (p PastRunPlayer) Name() string {
-	return PrettifyName(p.Character, "CHARACTER.")
+	return prettifyName(p.Character, "CHARACTER.")
 }
 
 type PastRunFile struct {
@@ -440,4 +477,12 @@ type PastRunFile struct {
 	StartTime         int             `json:"start_time"`
 	WasAbandoned      bool            `json:"was_abandoned"`
 	Win               bool            `json:"win"`
+}
+
+func readPastRunFile(file []byte) (PastRunFile, error) {
+	pastRun := PastRunFile{}
+	if err := json.Unmarshal(file, &pastRun); err != nil {
+		return PastRunFile{}, err
+	}
+	return pastRun, nil
 }

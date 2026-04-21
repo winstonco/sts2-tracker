@@ -3,22 +3,18 @@ package main
 import (
 	"fmt"
 	"log"
-	"path/filepath"
+	"os"
 	"strconv"
 )
 
-const STEAM_USERDATA_PATH = `C:\Program Files (x86)\Steam\userdata\`
-const STEAM_USER_ID = "286123118"
-const GAME_ID = "2868840"
-const PROFILE = "profile1"
-
-var PROFILE_SAVES_PATH = filepath.Join(STEAM_USERDATA_PATH, STEAM_USER_ID, GAME_ID, "remote", PROFILE, "saves")
-var PROGRESS_SAVE_PATH = filepath.Join(PROFILE_SAVES_PATH, "progress.save")
-var CURRENT_RUN_SAVE_PATH = filepath.Join(PROFILE_SAVES_PATH, "current_run.save")
-
 func main() {
+	db, err := connDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Read progress.save
-	progressSave, err := ReadProgressSave()
+	progressSave, err := readProgressSave()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -29,9 +25,10 @@ func main() {
 	}
 
 	// Read current_run.save
-	if FileExists(CURRENT_RUN_SAVE_PATH) {
+	_, err = os.Stat(CURRENT_RUN_SAVE_PATH)
+	if err == nil { // file exists
 		log.Println("Current run found")
-		run, err := ReadCurrentSave()
+		run, err := readCurrentSave()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -51,8 +48,8 @@ func main() {
 		log.Println("No current run")
 	}
 
-	// Aggregate past run data
-	AggregateRunData()
+	// Save past run data
+	readAndSaveRunHistory(db)
 
 	// Start watching
 	// BeginWatch()

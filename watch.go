@@ -33,7 +33,7 @@ func BeginWatch() {
 				if event.Has(fsnotify.Create); strings.HasSuffix(event.Name, "current_run.save") {
 					log.Println("Current run modified")
 					// get latest map point or pre-finished room
-					run, err := ReadCurrentSave()
+					run, err := readCurrentSave()
 					if err != nil {
 						log.Fatal(err)
 					}

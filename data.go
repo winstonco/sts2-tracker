@@ -1,79 +1,189 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
+	"database/sql"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 
-	"github.com/xuri/excelize/v2"
+	"github.com/go-sql-driver/mysql"
 )
 
-func FileExists(path string) bool {
-	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-		return false
-	}
-	return true
-}
+func connDB() (*sql.DB, error) {
+	cfg := mysql.NewConfig()
+	cfg.User = os.Getenv("DBUSER")
+	cfg.Passwd = os.Getenv("DBPASS")
+	cfg.Net = "tcp"
+	address := "127.0.0.1:3306"
+	cfg.Addr = address
+	cfg.DBName = "sts2_tracker"
 
-func ReadCurrentSave() (CurrentRunSaveFile, error) {
-	file, err := os.ReadFile(CURRENT_RUN_SAVE_PATH)
+	db, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
-		return CurrentRunSaveFile{}, err
+		return nil, err
 	}
 
-	currentRunSave := CurrentRunSaveFile{}
-	if err := json.Unmarshal(file, &currentRunSave); err != nil {
-		return CurrentRunSaveFile{}, err
+	if err := db.Ping(); err != nil {
+		return nil, err
 	}
-	return currentRunSave, nil
+	fmt.Println("Connected to db at: " + address)
+
+	return db, nil
 }
 
-func ReadProgressSave() (ProgressSaveFile, error) {
-	file, err := os.ReadFile(PROGRESS_SAVE_PATH)
+// Model for cards table
+type DBCardsModel struct {
+	CardId      string
+	CharacterId string
+	FloorSeen   int
+	WasPicked   bool
+	RunId       int64
+}
+
+// Model for runs table
+type DBRunsModel struct {
+	Id                int64
+	Act1              string
+	Act2              string
+	Act3              string
+	Ascension         int
+	BuildId           string
+	GameMode          string
+	KilledByEncounter string
+	KilledByEvent     string
+	RunTime           int
+	SchemaVersion     int
+	Seed              string
+	StartTime         int
+	WasAbandoned      bool
+	IsWin             bool
+}
+
+// Model for card_choice_options table
+type DBCardChoiceOptionsModel struct {
+	Id                  int64
+	CardChoiceId        int64
+	CardId              string
+	CurrentUpgradeLevel *int
+}
+
+// Model for map_point_card_choices table
+type DBMapPointCardChoicesModel struct {
+	Id     int64
+	RunId  int64
+	Floor  int
+	Choice *string
+}
+
+// File name = start time
+func getRunWithName(db *sql.DB, id int) (DBRunsModel, error) {
+	var r DBRunsModel
+	row := db.QueryRow("SELECT * FROM runs WHERE start_time = ?", id)
+	if err := row.Scan(
+		&r.Id,
+		&r.Act1,
+		&r.Act2,
+		&r.Act3,
+		&r.Ascension,
+		&r.BuildId,
+		&r.GameMode,
+		&r.KilledByEncounter,
+		&r.KilledByEvent,
+		&r.RunTime,
+		&r.SchemaVersion,
+		&r.Seed,
+		&r.StartTime,
+		&r.WasAbandoned,
+		&r.IsWin,
+	); err != nil {
+		return r, err
+	}
+	return r, nil
+}
+
+func insertRun(db *sql.DB, r DBRunsModel) (int64, error) {
+	result, err := db.Exec(
+		"INSERT INTO runs VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		r.Act1, r.Act2, r.Act3, r.Ascension, r.BuildId, r.GameMode, r.KilledByEncounter, r.KilledByEvent, r.RunTime, r.SchemaVersion, r.Seed, r.StartTime, r.WasAbandoned, r.IsWin,
+	)
 	if err != nil {
-		return ProgressSaveFile{}, err
+		return 0, err
 	}
-
-	progressSave := ProgressSaveFile{}
-	if err := json.Unmarshal(file, &progressSave); err != nil {
-		return ProgressSaveFile{}, err
-	}
-	return progressSave, nil
-}
-
-func ReadPastRun(path string) (PastRunFile, error) {
-	file, err := os.ReadFile(path)
+	id, err := result.LastInsertId()
 	if err != nil {
-		return PastRunFile{}, err
+		return 0, err
 	}
-
-	pastRun := PastRunFile{}
-	if err := json.Unmarshal(file, &pastRun); err != nil {
-		return PastRunFile{}, err
-	}
-	return pastRun, nil
+	return id, nil
 }
 
-func ReadAndSavePastRun(file *excelize.File, runId string) error {
-	path := filepath.Join(PROFILE_SAVES_PATH, "history", runId)
-	run, err := ReadPastRun(path)
+func insertCard(db *sql.DB, c DBCardsModel) (int64, error) {
+	result, err := db.Exec(
+		"INSERT INTO cards VALUES (DEFAULT, ?, ?, ?, ?, ?)",
+		c.CardId, c.CharacterId, c.FloorSeen, c.WasPicked, c.RunId,
+	)
+	if err != nil {
+		return 0, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func insertCardChoiceOption(db *sql.DB, c DBCardChoiceOptionsModel) (int64, error) {
+	result, err := db.Exec(
+		"INSERT INTO card_choice_options VALUES (DEFAULT, ?, ?, ?)",
+		c.CardChoiceId, c.CardId, c.CurrentUpgradeLevel,
+	)
+	if err != nil {
+		return 0, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func insertMapPointCardChoice(db *sql.DB, c DBMapPointCardChoicesModel) (int64, error) {
+	result, err := db.Exec(
+		"INSERT INTO map_point_card_choices VALUES (DEFAULT, ?, ?, ?)",
+		c.RunId, c.Floor, c.Choice,
+	)
+	if err != nil {
+		return 0, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func saveRun(db *sql.DB, run PastRunFile) error {
+	// Save run in db
+	rId, err := insertRun(db, DBRunsModel{
+		Act1:              run.Acts[0],
+		Act2:              run.Acts[1],
+		Act3:              run.Acts[2],
+		Ascension:         run.Ascension,
+		BuildId:           run.BuildId,
+		GameMode:          run.GameMode,
+		KilledByEncounter: run.KilledByEncounter,
+		KilledByEvent:     run.KilledByEvent,
+		RunTime:           run.RunTime,
+		SchemaVersion:     run.SchemaVersion,
+		Seed:              run.Seed,
+		StartTime:         run.StartTime,
+		WasAbandoned:      run.WasAbandoned,
+		IsWin:             run.Win,
+	})
 	if err != nil {
 		return err
 	}
-	// Get the num of rows in cards table
-	b2, err := file.GetCellValue("Metadata", "B2")
-	if err != nil {
-		return err
-	}
-	cardsSaved, err := strconv.Atoi(b2)
-	if err != nil {
-		return err
-	}
+	log.Printf("Added new run: %d\n", rId)
 	// make map of player id to character for later use
 	pIdToChar := make(map[int]string)
 	for _, p := range run.Players {
@@ -81,214 +191,102 @@ func ReadAndSavePastRun(file *excelize.File, runId string) error {
 	}
 	// Read map_point_history
 	// For each act
-	for i, actPoints := range run.MapPointHistory {
+	toInsert := make([]DBCardChoiceOptionsModel, 0)
+	floor := 0
+	for _, actPoints := range run.MapPointHistory {
 		// For each map point
-		for j, mapPoint := range actPoints {
-			// calc floor number (floor in act + floor counts of prev acts)
-			floor := j + 1
-			for k := 0; k < i-1; k++ {
-				floor += len(run.MapPointHistory[i])
-			}
+		for _, mapPoint := range actPoints {
+			floor++
 			// For each player
 			for _, player := range mapPoint.PlayerStats {
 				// For each card choice
 				if player.CardChoices != nil {
-					for _, choice := range *player.CardChoices {
-						card := choice.Card
-						file.SetSheetRow("Cards", fmt.Sprintf("A%d", cardsSaved+2), &[]any{
-							card.Id,
-							pIdToChar[player.PlayerId],
-							run.Ascension,
-							floor,
-							choice.WasPicked,
-							run.Acts[0],
-							run.Acts[1],
-							run.Acts[2],
-							run.Win,
-							runId,
-							run.BuildId,
+					// put each choice in a list to add after adding map_point_card_choices row, which requires knowing the card choice made (or skip)
+					var choice *string = nil
+					for _, choice_opt := range *player.CardChoices {
+						card := choice_opt.Card
+						if choice_opt.WasPicked {
+							choice = &card.Id
+						}
+						choiceOpt := DBCardChoiceOptionsModel{
+							CardId:              card.Id,
+							CurrentUpgradeLevel: card.CurrentUpgradeLevel,
+						}
+						log.Println(choiceOpt)
+						toInsert = append(toInsert, choiceOpt)
+						// // Save card data in db
+						// cId, err := insertCard(db, DBCardsModel{
+						// 	CardId:      card.Id,
+						// 	CharacterId: pIdToChar[player.PlayerId],
+						// 	FloorSeen:   floor,
+						// 	WasPicked:   choice.WasPicked,
+						// 	RunId:       rId,
+						// })
+						// if err != nil {
+						// 	return err
+						// }
+					}
+					// insert map point card choice parent row
+					mpccId, err := insertMapPointCardChoice(db, DBMapPointCardChoicesModel{
+						RunId:  rId,
+						Floor:  floor,
+						Choice: choice,
+					})
+					if err != nil {
+						return err
+					}
+					log.Printf("Added new map_point_card_choices: %d\n", mpccId)
+					// insert all card choice child rows
+					for len(toInsert) > 0 {
+						cc := toInsert[0]
+						_, err := insertCardChoiceOption(db, DBCardChoiceOptionsModel{
+							CardChoiceId:        mpccId,
+							CardId:              cc.CardId,
+							CurrentUpgradeLevel: cc.CurrentUpgradeLevel,
 						})
-						cardsSaved++
-						file.SetCellValue("Metadata", "B2", cardsSaved)
+						if err != nil {
+							return err
+						}
+						log.Printf("Added new card: %s\n", cc.CardId)
+						toInsert = toInsert[1:]
 					}
 				}
 			}
 		}
 	}
-	if err := file.Save(); err != nil {
-		return err
-	}
 	return nil
 }
 
-const SPIRE_DATA_VERSION = "1"
+func readAndSaveRunHistory(db *sql.DB) {
+	log.Println("Reading local run history")
+	// Get runs in game history
+	dirPath := filepath.Join(PROFILE_SAVES_PATH, "history")
+	files, err := os.ReadDir(dirPath)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-func makeNewSpireDataFile() error {
-	f := excelize.NewFile()
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	if err := f.SetSheetName("Sheet1", "Metadata"); err != nil {
-		return err
-	}
-	if err := f.SetSheetRow("Metadata", "A1", &[]any{
-		"SpireDataVersion",
-		SPIRE_DATA_VERSION,
-	}); err != nil {
-		return err
-	}
-	if err := f.SetSheetRow("Metadata", "A2", &[]any{
-		"CardsSaved",
-		0,
-	}); err != nil {
-		return err
-	}
-	if _, err := f.NewSheet("Runs"); err != nil {
-		return err
-	}
-	if _, err := f.NewSheet("Cards"); err != nil {
-		return err
-	}
-	if err := f.SetSheetRow("Cards", "A1", &[]any{
-		"Card ID",
-		"Character ID",
-		"Ascension",
-		"Floor Seen",
-		"Picked",
-		"Act1",
-		"Act2",
-		"Act3",
-		"Won",
-		"Run ID",
-		"Version",
-	}); err != nil {
-		return err
-	}
-	if err := f.SaveAs("SpireData.xlsx"); err != nil {
-		return err
-	}
-	return nil
-}
-
-func AggregateRunData() {
-	if !FileExists("./SpireData.xlsx") {
-		if err := makeNewSpireDataFile(); err != nil {
-			log.Fatal(err)
-		}
-	}
-	f, err := excelize.OpenFile("SpireData.xlsx")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	spireDataVersion, err := f.GetCellValue("Metadata", "B1")
-	if err != nil {
-		log.Fatal(err)
-	}
-	// If SpireData is outdated, clear history of runs already collected
-	if spireDataVersion != SPIRE_DATA_VERSION {
-		if err := f.RemoveCol("Runs", "A"); err != nil {
-			log.Fatal(err)
-		}
-		if err := f.Save(); err != nil {
-			log.Fatal(err)
-		}
-	}
-	// Get collected collRuns list
-	var collRuns []string
-	cols, err := f.Cols("Runs")
-	if err != nil {
-		log.Fatal(err)
-	}
-	if cols.Next() {
-		collRuns, err = cols.Rows()
+	for _, dirEntry := range files {
+		log.Println(dirEntry.Name())
+		fp := filepath.Join(dirPath, dirEntry.Name())
+		file, err := os.ReadFile(fp)
 		if err != nil {
 			log.Fatal(err)
 		}
-	}
-	// Get runs in game history
-	files, err := os.ReadDir(filepath.Join(PROFILE_SAVES_PATH, "history"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Compare uncollected runs
-	// TODO: Maybe this is too slow
-	countNew := 0
-	for _, file := range files {
-		// Check if in collected runs list
-		collected := false
-		for _, r := range collRuns {
-			if r == file.Name() {
-				collected = true
+		run, err := readPastRunFile(file)
+		// Check if run exists
+		_, err = getRunWithName(db, run.StartTime)
+		switch err {
+		case nil:
+			// already saved
+			log.Println("Run exists")
+		case sql.ErrNoRows:
+			// add run
+			if err := saveRun(db, run); err != nil {
+				log.Fatalf("\n%v", err)
 			}
-		}
-		if !collected {
-			countNew++
-			if err := ReadAndSavePastRun(f, file.Name()); err != nil {
-				log.Fatal(err)
-			}
-			f.SetCellValue("Runs", fmt.Sprintf("A%d", len(collRuns)+countNew), file.Name())
-			if err := f.Save(); err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-}
-
-/*
-func WriteExcelExample() {
-	f := excelize.NewFile()
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatal()
-		}
-	}()
-	// Create a new sheet.
-	// index, err := f.NewSheet("Sheet1")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// Set value of a cell.
-	f.SetCellValue("Sheet1", "A2", "Hello world.")
-	f.SetCellValue("Sheet1", "B2", 100)
-	// f.SetActiveSheet(index)
-	if err := f.SaveAs("SpireData.xlsx"); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func ReadExcelExample() {
-	f, err := excelize.OpenFile("SpireData.xlsx")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
+		default:
 			log.Fatal(err)
 		}
-	}()
-	// Get value from cell by given worksheet name and cell reference.
-	cell, err := f.GetCellValue("Sheet1", "B2")
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println(cell)
-	// Get all the rows in the Sheet1.
-	rows, err := f.GetRows("Sheet1")
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, row := range rows {
-		for _, colCell := range row {
-			log.Print(colCell, "\t")
-		}
-		log.Println()
 	}
 }
-*/
