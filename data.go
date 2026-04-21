@@ -32,13 +32,10 @@ func connDB() (*sql.DB, error) {
 	return db, nil
 }
 
-// Model for cards table
-type DBCardsModel struct {
-	CardId      string
-	CharacterId string
-	FloorSeen   int
-	WasPicked   bool
-	RunId       int64
+// Model for run_cards table
+type DBRunCardsModel struct {
+	RunId  int64
+	CardId string
 }
 
 // Model for runs table
@@ -117,10 +114,11 @@ func insertRun(db *sql.DB, r DBRunsModel) (int64, error) {
 	return id, nil
 }
 
-func insertCard(db *sql.DB, c DBCardsModel) (int64, error) {
+// idempotent insert
+func insertRunCard(db *sql.DB, c DBRunCardsModel) (int64, error) {
 	result, err := db.Exec(
-		"INSERT INTO cards VALUES (DEFAULT, ?, ?, ?, ?, ?)",
-		c.CardId, c.CharacterId, c.FloorSeen, c.WasPicked, c.RunId,
+		"INSERT INTO run_cards VALUES (?, ?) ON DUPLICATE KEY UPDATE card_id = card_id",
+		c.RunId, c.CardId,
 	)
 	if err != nil {
 		return 0, err
@@ -207,6 +205,11 @@ func saveRun(db *sql.DB, run PastRunFile) error {
 						card := choice_opt.Card
 						if choice_opt.WasPicked {
 							choice = &card.Id
+							// if picked, add to run_cards table
+							insertRunCard(db, DBRunCardsModel{
+								RunId:  rId,
+								CardId: card.Id,
+							})
 						}
 						choiceOpt := DBCardChoiceOptionsModel{
 							CardId:              card.Id,
@@ -214,17 +217,6 @@ func saveRun(db *sql.DB, run PastRunFile) error {
 						}
 						log.Println(choiceOpt)
 						toInsert = append(toInsert, choiceOpt)
-						// // Save card data in db
-						// cId, err := insertCard(db, DBCardsModel{
-						// 	CardId:      card.Id,
-						// 	CharacterId: pIdToChar[player.PlayerId],
-						// 	FloorSeen:   floor,
-						// 	WasPicked:   choice.WasPicked,
-						// 	RunId:       rId,
-						// })
-						// if err != nil {
-						// 	return err
-						// }
 					}
 					// insert map point card choice parent row
 					mpccId, err := insertMapPointCardChoice(db, DBMapPointCardChoicesModel{
